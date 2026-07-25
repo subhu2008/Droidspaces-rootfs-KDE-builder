@@ -1,204 +1,204 @@
-中文 | [English](README_english.md)
+English | [中文](README.md)
 
-# Droidspaces RootFS 自动构建
+# Droidspaces RootFS Automated Build
 
-本项目用于通过 GitHub Actions 自动构建适用于 Droidspaces 的 Linux RootFS。构建流程基于 Dockerfile 模板，可以按需选择发行版、KDE 桌面规模、中文环境、输入法、GPU 加速、音频转发、TMOE、Docker、开发工具和 Wayland/Anland 支持。
+This project builds Linux RootFS archives for Droidspaces through GitHub Actions. The build system is based on Dockerfile templates and exposes common options for distribution selection, KDE desktop size, Chinese localization, input method support, Snapdragon GPU acceleration, audio forwarding, TMOE, Docker, development tools, and Wayland/Anland support.
 
-项目目标是减少在 Android 设备上手动配置桌面 Linux 容器的工作量。你只需要 Fork 仓库，在 Actions 页面选择构建参数，等待 Release 产物生成，然后把 `.tar.xz` RootFS 导入 Droidspaces。
+The goal is to reduce the amount of manual setup required to run a desktop Linux container on Android. Fork the repository, choose the build options in GitHub Actions, wait for the Release artifact, then import the generated `.tar.xz` RootFS into Droidspaces.
 
-## 目录
+## Table of Contents
 
-- [支持的系统](#支持的系统)
-- [功能概览](#功能概览)
-- [构建选项说明](#构建选项说明)
-- [使用 GitHub Actions 构建](#使用-github-actions-构建)
-- [导入 Droidspaces](#导入-droidspaces)
-- [启动 KDE 桌面](#启动-kde-桌面)
-- [Wayland 和 Anland 配置](#wayland-和-anland-配置)
+- [Supported Targets](#supported-targets)
+- [Feature Overview](#feature-overview)
+- [Build Options](#build-options)
+- [Build with GitHub Actions](#build-with-github-actions)
+- [Import into Droidspaces](#import-into-droidspaces)
+- [Start KDE Desktop](#start-kde-desktop)
+- [Wayland and Anland Setup](#wayland-and-anland-setup)
 - [Droidspaces USB Manager](#droidspaces-usb-manager)
-- [账户、密码和用户名修改](#账户密码和用户名修改)
-- [本地构建](#本地构建)
-- [安装硬件固件](#安装硬件固件)
-- [仓库结构](#仓库结构)
-- [已知限制](#已知限制)
-- [致谢](#致谢)
+- [Account, Password, and Username Changes](#account-password-and-username-changes)
+- [Local Build](#local-build)
+- [Install Hardware Firmware](#install-hardware-firmware)
+- [Repository Layout](#repository-layout)
+- [Known Limitations](#known-limitations)
+- [Acknowledgements](#acknowledgements)
 
-## 支持的系统
+## Supported Targets
 
-| 构建目标 | 基础镜像 | KDE 模式 | Wayland/Anland | 备注 |
+| Build target | Base image | KDE modes | Wayland/Anland | Notes |
 | --- | --- | --- | --- | --- |
-| `Debian-13-KDE` | `debian:trixie` | `min`、`conc`、`mobile`、`none` | 支持 | Debian 13 使用 Trixie 软件源。 |
-| `Ubuntu-24-KDE` | `ubuntu:24.04` | `min`、`conc`、`none` | 不支持 | 支持 `nosnap`。 |
-| `Ubuntu-25-KDE` | `ubuntu:25.10` | `min`、`conc`、`none` | 不支持 | 支持 `nosnap`。 |
-| `Ubuntu-26-KDE` | `ubuntu:26.04` | `min`、`conc`、`mobile`、`none` | 支持 | 支持 `nosnap`，推荐用于 Anland KDE。 |
-| `Fedora-43-KDE` | `fedora:43` | `min`、`conc`、`mobile`、`none` | 支持 | 某些设备需要启用硬件访问。 |
-| `Fedora-44-KDE` | `fedora:44` | `min`、`conc`、`mobile`、`none` | 支持 | 某些设备需要启用硬件访问。 |
-| `Arch-KDE` | `ogarcia/archlinux` | `min`、`conc`、`none` | 不支持 | 内核建议 5.10 或更新；当前不建议使用本项目的 QEMU/binfmt 跨架构方案。 |
+| `Debian-13-KDE` | `debian:trixie` | `min`, `conc`, `mobile`, `none` | Supported | Uses the Debian 13 Trixie repositories. |
+| `Ubuntu-24-KDE` | `ubuntu:24.04` | `min`, `conc`, `none` | Not supported | Supports `nosnap`. |
+| `Ubuntu-25-KDE` | `ubuntu:25.10` | `min`, `conc`, `none` | Not supported | Supports `nosnap`. |
+| `Ubuntu-26-KDE` | `ubuntu:26.04` | `min`, `conc`, `mobile`, `none` | Supported | Supports `nosnap`; recommended for Anland KDE. |
+| `Fedora-43-KDE` | `fedora:43` | `min`, `conc`, `mobile`, `none` | Supported | Some devices require hardware access to avoid flicker or crashes. |
+| `Fedora-44-KDE` | `fedora:44` | `min`, `conc`, `mobile`, `none` | Supported | Some devices require hardware access. |
+| `Arch-KDE` | `ogarcia/archlinux` | `min`, `conc`, `none` | Not supported | Kernel 5.10 or newer is recommended; this project's QEMU/binfmt flow is not recommended for Arch at the moment. |
 
-`all` 会构建全部 Dockerfile 模板。`all-wayland` 只构建支持 Wayland/Anland 的目标，也就是 `Debian-13-KDE`、`Ubuntu-26-KDE`、`Fedora-43-KDE` 和 `Fedora-44-KDE`，并强制启用 Wayland 支持。
+`all` builds every Dockerfile template. `all-wayland` builds only the Wayland-capable targets, currently `Debian-13-KDE`, `Ubuntu-26-KDE`, `Fedora-43-KDE`, and `Fedora-44-KDE`, and forces Wayland support on.
 
-## 功能概览
+## Feature Overview
 
-- 多发行版 RootFS 构建：支持 Debian、Ubuntu、Fedora 和 Arch。
-- KDE 桌面可裁剪：支持命令行 RootFS、最小 KDE、精简 KDE 和移动版 KDE。
-- 桌面自动启动与故障恢复：X11、Plasma Wayland 和 Plasma Mobile 使用统一的 systemd 服务模板，异常退出后会限频自动重启。
-- Termux:X11 桌面启动：X11 模式下默认使用 `DISPLAY=:5`。
-- PulseAudio 音频转发：支持 Unix socket、TCP 和关闭音频转发。
-- 中文环境：可选启用 `zh_CN.UTF-8` 和 `Asia/Shanghai` 时区。
-- 输入法：可选安装 Fcitx5；启用中文环境时会额外安装中文输入支持。
-- Snapdragon GPU 支持：集成来自 `mesa-for-android-container` 的高通 GPU 相关配置。
-- 骁龙 8 Gen 2 Wayland 花屏修复：可选将 Turnip UBWC 修复开关写入 RootFS 环境变量。
-- 容器增强：补充 Android/Droidspaces 环境下常见的硬件、网络和用户组识别配置。
-- TMOE：可选集成 TMOE，容器内执行 `tmoe` 即可启动。
-- 开发工具：可选安装编译器、CMake、Python 开发环境等。
-- 压缩工具：可选安装 `zip`、`unzip`、`7z`、`xz`、`tar`、`gzip` 等工具。
-- Docker：可选在 RootFS 内安装 Docker 相关软件包。
-- 旧内核 systemd 兼容：可选在 systemd 主版本高于 257 的 apt、dnf 或 pacman 发行版中构建并安装 `v257-stable`；Debian 13 等已是 257 或更低版本时会自动跳过。
-- Wayland/Anland：对 Debian 13、Ubuntu 26.04、Fedora 43 和 Fedora 44 提供稳定的 patched KWin 与 Xwayland 包。
-- USB 设备管理：全部发行版内置 Droidspaces USB Manager，支持 USB 存储、ADB 设备节点、挂载、卸载和系统托盘。
-- Release 自动发布：构建完成后会把 RootFS `.tar.xz` 和对应的音频启动脚本上传到 GitHub Release。
+- Multi-distribution RootFS builds for Debian, Ubuntu, Fedora, and Arch.
+- Scalable KDE desktop profiles, from command-line only to minimal, compact, and mobile KDE.
+- Desktop auto-start and failure recovery using shared systemd service templates for X11, Plasma Wayland, and Plasma Mobile, with rate-limited automatic restarts after failures.
+- Termux:X11 desktop startup support. X11 mode defaults to `DISPLAY=:5`.
+- PulseAudio forwarding through Unix socket, TCP, or disabled mode.
+- Optional Chinese locale with `zh_CN.UTF-8` and `Asia/Shanghai` timezone.
+- Optional Fcitx5 input method. Chinese input addons are installed when Chinese localization is enabled.
+- Snapdragon GPU support using configuration from `mesa-for-android-container`.
+- Optional Snapdragon 8 Gen 2 Wayland display-corruption fix through a Turnip UBWC environment setting.
+- Container integration improvements for common Android/Droidspaces hardware, network, and group recognition.
+- Optional TMOE integration. Run `tmoe` inside the container to start it.
+- Optional development toolchain packages, including compilers, CMake, and Python development tooling.
+- Optional compression utilities such as `zip`, `unzip`, `7z`, `xz`, `tar`, and `gzip`.
+- Optional Docker packages inside the RootFS.
+- Optional old-kernel systemd compatibility: on apt, dnf, or pacman targets whose systemd major version is above 257, build and install `v257-stable`; Debian 13 and other 257-or-older systems are skipped automatically.
+- Stable Wayland/Anland support for Debian 13, Ubuntu 26.04, Fedora 43, and Fedora 44 through patched KWin and Xwayland packages.
+- USB device management on every distribution through Droidspaces USB Manager, including USB storage, ADB device nodes, mounting, unmounting, and a system tray interface.
+- Automatic Release publishing with the RootFS `.tar.xz` files and matching audio startup scripts.
 
-## 构建选项说明
+## Build Options
 
-GitHub Actions 的主要输入项如下：
+The main GitHub Actions inputs are:
 
-| 选项 | 可选值 | 默认值 | 说明 |
+| Option | Values | Default | Description |
 | --- | --- | --- | --- |
-| 选择要构建的发行版 (`build_target`) | 发行版目标、`all`、`all-wayland` | `Debian-13-KDE` | 选择要构建的 RootFS。 |
-| 自定义用户名 (`custom_username`) | 字符串 | `Gold` | RootFS 默认用户。Release 中的音频启动脚本会同步替换该用户名。 |
-| KDE 桌面选择 (`build_KDE`) | `conc`、`min`、`mobile`、`none` | `min` | KDE 桌面规模。`none` 表示只构建命令行环境。 |
-| KDE 桌面开机自启动 (`build_KDE_plus`) | `true`、`false` | `true` | 是否创建 KDE 自启动 systemd 服务。需要已安装 KDE；选择 `none` 桌面时应关闭。 |
-| Wayland 支持 (`enable_anland_kde`) | `true`、`false` | `false` | 是否启用 Wayland/Anland 支持。支持 Debian 13、Ubuntu 26、Fedora 43 和 Fedora 44。 |
-| PulseAudio 音频转发 (`PulseAudio`) | `socket`、`tcp`、`none` | `socket` | X11 模式下的音频转发方式。启用 Anland 时会被强制改为 `none`。 |
-| 使用中文语言和时区 (`enable_zh_tz`) | `true`、`false` | 中文工作流默认为 `true` | 启用中文 locale 并设置上海时区。 |
-| 高通骁龙 GPU 支持 (`enable_mesa`) | `true`、`false` | `true` | 启用高通 GPU/Mesa 相关支持。 |
-| 修复 8Gen2 Wayland 花屏 (`enable_8gen2_wayland`) | `true`、`false` | `false` | 为 Debian 13、Ubuntu 26、Fedora 43/44 写入 `FD_DEV_FEATURES=enable_tp_ubwc_flag_hint=1` 到 `/etc/environment`。 |
-| 集成 TMOE (`enable_tmoe`) | `true`、`false` | `true` | 集成 TMOE。 |
-| 移除 Ubuntu Snap (`nosnap`) | `true`、`false` | `false` | 只对 Ubuntu 有意义，用于移除 Snap、snapd 和可能重新安装 snapd 的 APT 策略。 |
-| systemd 257 旧内核兼容 (`enable_systemd257`) | `true`、`false` | `false` | 启用后，在当前 systemd 主版本高于 257 时从 `v257-stable` 构建兼容运行时；systemd 257 及更低版本自动跳过。构建完成后会锁定 systemd 相关包，避免再次升级覆盖。 |
-| 输入法 Fcitx5 支持 (`enable_srf`) | `true`、`false` | `false` | 安装 Fcitx5 输入法。 |
-| 跨架构支持 (`enable_binfmt`) | `true`、`false` | `false` | 在 RootFS 内加入 binfmt 跨架构支持组件。Arch 当前不建议使用。 |
-| NAT 和硬件识别支持 (`enable_yj`) | `true`、`false` | `true` | 启用容器硬件和网络识别增强。 |
-| 开发工具集成 (`enable_kfgj`) | `true`、`false` | `false` | 安装开发工具链。 |
-| 压缩工具集成 (`enable_zip`) | `true`、`false` | `true` | 安装常用压缩工具。 |
-| Docker 集成 (`enable_docker`) | `true`、`false` | `false` | 在 RootFS 内安装 Docker 相关包。 |
-| 构建 Wayland 预编译包 (`build_wayland_packages`) | `true`、`false` | `false` | 构建 RootFS 前触发 KWin/Xwayland 预编译包更新流程。 |
+| Distribution to build (`build_target`) | Distribution target, `all`, `all-wayland` | `Debian-13-KDE` | Selects which RootFS target to build. |
+| Custom username (`custom_username`) | String | `Gold` | Default user inside the RootFS. The audio startup script in the Release is patched with this username. |
+| KDE desktop choice (`build_KDE`) | `conc`, `min`, `mobile`, `none` | `min` | KDE desktop size. `none` builds a command-line only RootFS. |
+| KDE desktop auto-start (`build_KDE_plus`) | `true`, `false` | `true` | Creates a systemd service to auto-start KDE. Requires a KDE mode other than `none`; turn it off when building `none`. |
+| Wayland support (`enable_anland_kde`) | `true`, `false` | `false` | Enables Wayland/Anland support on Debian 13, Ubuntu 26, Fedora 43, and Fedora 44. |
+| PulseAudio forwarding (`PulseAudio`) | `socket`, `tcp`, `none` | `socket` | Audio forwarding mode for X11 builds. It is forced to `none` when Anland is enabled. |
+| Chinese language and timezone (`enable_zh_tz`) | `true`, `false` | `false` in the English workflow | Enables Chinese locale and the Shanghai timezone. |
+| Qualcomm Snapdragon GPU support (`enable_mesa`) | `true`, `false` | `true` | Enables Qualcomm Snapdragon GPU and Mesa-related support. |
+| Fix Snapdragon 8 Gen 2 Wayland display corruption (`enable_8gen2_wayland`) | `true`, `false` | `false` | Writes `FD_DEV_FEATURES=enable_tp_ubwc_flag_hint=1` to `/etc/environment` for Debian 13, Ubuntu 26, and Fedora 43/44. |
+| Integrate TMOE (`enable_tmoe`) | `true`, `false` | `true` | Integrates TMOE. |
+| Remove Ubuntu Snap (`nosnap`) | `true`, `false` | `false` | Ubuntu-only option that removes Snap, snapd, and APT policy paths that may reinstall snapd. |
+| systemd 257 old-kernel compatibility (`enable_systemd257`) | `true`, `false` | `false` | When enabled, builds a `v257-stable` compatibility runtime if the current systemd major version is above 257; versions 257 and older are skipped. systemd-related packages are locked after the build to prevent replacement by upgrades. |
+| Fcitx5 input method support (`enable_srf`) | `true`, `false` | `false` | Installs Fcitx5 input method support. |
+| Cross-architecture support (`enable_binfmt`) | `true`, `false` | `false` | Adds binfmt cross-architecture components inside the RootFS. Not recommended for Arch in this project. |
+| NAT and hardware recognition (`enable_yj`) | `true`, `false` | `true` | Enables container hardware and network recognition improvements. |
+| Development tools integration (`enable_kfgj`) | `true`, `false` | `false` | Installs development tools. |
+| Compression tools integration (`enable_zip`) | `true`, `false` | `true` | Installs common compression tools. |
+| Docker integration (`enable_docker`) | `true`, `false` | `false` | Installs Docker-related packages inside the RootFS. |
+| Build Wayland prebuilt packages (`build_wayland_packages`) | `true`, `false` | `false` | Triggers the KWin/Xwayland prebuilt package workflow before building the RootFS. |
 
-KDE 模式说明：
+KDE mode details:
 
-| 模式 | 说明 | 适合场景 |
+| Mode | Description | Recommended use |
 | --- | --- | --- |
-| `none` | 不安装 KDE 桌面，只保留命令行环境。 | 需要轻量 RootFS、SSH、开发环境或自定义桌面的用户。 |
-| `min` | 最小 KDE 桌面，包含 Plasma 基础组件和常用启动依赖。 | 想要较小体积且可用 KDE 桌面的用户。 |
-| `conc` | 精简但更完整的 KDE 桌面，包含更多系统工具、监控、文件管理和多媒体组件。 | 日常桌面使用。 |
-| `mobile` | KDE Plasma Mobile 相关组件。 | 手机屏幕和触控优先场景；会强制启用 Wayland。 |
+| `none` | Does not install KDE. Keeps a command-line environment only. | Lightweight RootFS, SSH use, development environments, or custom desktop setups. |
+| `min` | Minimal KDE desktop with Plasma basics and startup dependencies. | Smaller KDE builds that still provide a usable desktop. |
+| `conc` | Compact but more complete KDE desktop with more system tools, monitoring, file management, and multimedia components. | General desktop use. |
+| `mobile` | KDE Plasma Mobile components. | Phone-screen and touch-first usage; forces Wayland in this project. |
 
-音频模式说明：
+Audio mode details:
 
-| 模式 | 说明 |
+| Mode | Description |
 | --- | --- |
-| `socket` | 使用 Unix socket 转发 PulseAudio。通常延迟更低，推荐在 X11 模式下使用。 |
-| `tcp` | 使用 `127.0.0.1:4713` 转发 PulseAudio。兼容性较直观，但暴露面更大。 |
-| `none` | 不配置 PulseAudio。Anland 模式下会自动使用此模式，因为 Anland App 自带音频路径。 |
+| `socket` | Uses a Unix socket for PulseAudio forwarding. This is usually lower latency and is recommended for X11 mode. |
+| `tcp` | Uses `127.0.0.1:4713` for PulseAudio forwarding. It is straightforward to debug, but exposes a wider interface. |
+| `none` | Does not configure PulseAudio. Anland mode automatically uses this value because the Anland app provides its own audio path. |
 
-### systemd 257 旧内核兼容
+### systemd 257 old-kernel compatibility
 
-开启 `enable_systemd257` 后，RootFS 会运行 `scripts/systemd257.sh`。脚本会先检测发行版现有的 systemd 主版本：
+When `enable_systemd257` is enabled, the build runs `scripts/systemd257.sh`. The script first detects the installed systemd major version:
 
-- 257 或更低版本（例如 Debian 13、Ubuntu 24.04）直接跳过；
-- 高于 257 的 apt、dnf 和 pacman 系统从官方 `v257-stable` 构建 systemd 257；
-- 构建依赖会在完成后清理，并锁定 systemd 相关软件包，防止后续升级覆盖兼容版本。
+- systemd 257 or older (for example Debian 13 and Ubuntu 24.04) is skipped;
+- apt, dnf, and pacman systems above 257 build systemd 257 from the official `v257-stable` branch;
+- build dependencies are removed after the build, and systemd-related packages are locked so a later upgrade does not overwrite the compatibility runtime.
 
-该选项主要面向旧 Android 内核，属于实验性兼容方案，会显著增加构建时间；建议先在目标内核上验证桌面、dbus、udev 和网络功能。
+This option targets old Android kernels and is experimental. It adds substantial build time; test the desktop, dbus, udev, and networking behavior on the target kernel before distributing the image.
 
-## 使用 GitHub Actions 构建
+## Build with GitHub Actions
 
-1. Fork 本仓库到自己的 GitHub 账号。
-2. 打开 Fork 后仓库的 `Actions` 页面。
-3. 选择中文工作流 `编译并发布 Droidspaces RootFS`，或英文工作流 `Build and Release Droidspaces RootFS`。
-4. 点击 `Run workflow`。
-5. 选择发行版、KDE 模式、用户名和功能开关。
-6. 如果要使用 Wayland/Anland，建议选择 `Ubuntu-26-KDE`、`Debian-13-KDE`、`Fedora-43-KDE` 或 `Fedora-44-KDE`，并开启 `enable_anland_kde`。
-7. 如果希望先重新构建 patched KWin/Xwayland 包，再构建 RootFS，开启 `build_wayland_packages`。
-8. 等待 Actions 完成。构建时间取决于目标数量、KDE 模式和 GitHub runner 状态。
-9. 打开 `Releases` 页面，下载生成的 `.tar.xz` RootFS。
+1. Fork this repository to your own GitHub account.
+2. Open the `Actions` page in your fork.
+3. Select the Chinese workflow `编译并发布 Droidspaces RootFS` or the English workflow `Build and Release Droidspaces RootFS`.
+4. Click `Run workflow`.
+5. Choose the distribution, KDE mode, username, and feature toggles.
+6. For Wayland/Anland builds, choose `Ubuntu-26-KDE`, `Debian-13-KDE`, `Fedora-43-KDE`, or `Fedora-44-KDE`, then enable `enable_anland_kde`.
+7. If you want to rebuild the patched KWin/Xwayland packages before building the RootFS, enable `build_wayland_packages`.
+8. Wait for the workflow to finish. Build time depends on the number of targets, KDE mode, and GitHub runner availability.
+9. Open the `Releases` page and download the generated `.tar.xz` RootFS.
 
-Release 通常包含：
+The Release usually contains:
 
-- 一个或多个 RootFS 压缩包
-- RootFS 文件名会按显示模式标记为 `X11`、`Wayland` 或 `Mobile`，例如 `Ubuntu-26-KDE-Mobile-Droidspaces-rootfs-aarch64-v20260702-120000.tar.xz`。
-- 当 `PulseAudio` 为 `socket` 或 `tcp`，且 `build_KDE_plus=false` 时，会附带 `on_aaudio_socket.sh` 或 `on_aaudio_tcp.sh`。
-- Release 正文会记录构建目标、KDE 模式、Wayland 开关、用户名和各功能开关。
+- One or more RootFS archives
+- RootFS filenames are marked by display mode as `X11`, `Wayland`, or `Mobile`, for example `Ubuntu-26-KDE-Mobile-Droidspaces-rootfs-aarch64-v20260702-120000.tar.xz`.
+- `on_aaudio_socket.sh` or `on_aaudio_tcp.sh` when `PulseAudio` is set to `socket` or `tcp` and `build_KDE_plus=false`.
+- A Release body that records the build target, KDE mode, Wayland setting, username, and feature toggles.
 
-## 导入 Droidspaces
+## Import into Droidspaces
 
-1. 在 Droidspaces 中创建或导入容器。
-2. RootFS 文件选择 Release 下载的 `.tar.xz`。
-3. 如果 RootFS 包含 KDE 桌面，必须在 Droidspaces 中开启 GPU 访问。
-4. Ubuntu 和 Debian 系建议在特权模式中开启 `noseccomp`，并确保内核启用 `USER_NS`。否则某些桌面操作可能出现明显卡顿。
-5. Fedora 某些设备需要开启硬件访问，否则可能出现桌面闪屏或崩溃。
-6. Arch 建议宿主内核版本为 5.10 或更新。
-7. 如果使用 X11 模式，准备好 Termux:X11。
-8. 如果使用 Wayland/Anland 模式，按本文的 Wayland 和 Anland 配置完成宿主侧准备。
+1. Create or import a container in Droidspaces.
+2. Select the `.tar.xz` RootFS downloaded from the Release.
+3. If the RootFS includes KDE, enable GPU access in Droidspaces.
+4. For Ubuntu and Debian, enabling `noseccomp` in privileged mode is strongly recommended. The kernel should also have `USER_NS` enabled. Without these, some desktop operations may freeze or lag noticeably.
+5. For Fedora, some devices require hardware access. Without it, the desktop may flicker or crash.
+6. For Arch, kernel 5.10 or newer is recommended.
+7. For X11 mode, prepare Termux:X11.
+8. For Wayland/Anland mode, complete the host-side Anland setup described below.
 
-## 启动 KDE 桌面
+## Start KDE Desktop
 
-启用 `build_KDE_plus` 后，构建流程会根据桌面模式安装对应的 systemd 服务：
+When `build_KDE_plus` is enabled, the build installs the systemd service matching the selected desktop mode:
 
-| 桌面模式 | 服务文件 | 启动命令 |
+| Desktop mode | Service file | Start command |
 | --- | --- | --- |
 | X11 | `plasma-x11.service` | `DISPLAY=:5 startplasma-x11` |
 | Wayland | `plasma-wayland.service` | `startplasma-wayland` |
 | Mobile | `plasma-mobile.service` | `startplasmamobile` |
 
-这些服务以 UID 1000 用户运行并读取 `/etc/environment`。桌面进程异常退出时会在 2 秒后自动重启；如果 60 秒内启动失败超过 5 次，systemd 会暂时停止重试，防止形成崩溃循环。正常退出不会触发自动重启。
+These services run as UID 1000 and load `/etc/environment`. If the desktop process fails, systemd restarts it after 2 seconds. If it fails more than 5 times within 60 seconds, systemd temporarily stops retrying to prevent a crash loop. A normal exit does not trigger a restart.
 
-### X11 模式
+### X11 Mode
 
-X11 模式适用于未启用 `enable_anland_kde` 的构建。默认环境变量为：
+X11 mode applies to builds where `enable_anland_kde` is disabled. The default display environment is:
 
 ```text
 DISPLAY=:5
 ```
 
-建议保持 `build_KDE_plus=true`，这也是当前默认选项。启用后 RootFS 会创建 KDE 自启动 systemd 服务，容器启动后会自动拉起桌面环境；只有需要使用 Termux 侧 `on_aaudio_*` 脚本手动启动桌面，或构建 `none` 命令行环境时，才建议关闭该选项。
+It is recommended to keep `build_KDE_plus=true`, which is now the default. With it enabled, the RootFS creates a KDE auto-start systemd service so the desktop can start after the container boots. Disable it only when you want to use the Termux-side `on_aaudio_*` script to start the desktop manually, or when building a `none` command-line environment.
 
-如果 Release 中包含音频启动脚本，可以在 Termux 中使用它启动 PulseAudio、Termux:X11 和 KDE：
+If the Release includes an audio startup script, run it from Termux to start PulseAudio, Termux:X11, and KDE:
 
 ```bash
 chmod +x on_aaudio_socket.sh
 ./on_aaudio_socket.sh
 ```
 
-或：
+Or:
 
 ```bash
 chmod +x on_aaudio_tcp.sh
 ./on_aaudio_tcp.sh
 ```
 
-使用脚本前需要检查脚本顶部变量：
+Before using the script, check the variables at the top:
 
 ```bash
-CONTAINER_NAME="你的 Droidspaces 容器名"
-USERNAME="你的 RootFS 用户名"
+CONTAINER_NAME="your Droidspaces container name"
+USERNAME="your RootFS username"
 DISPLAY_NUMBER=":5"
 DPI=315
 ```
 
-`USERNAME` 会在 Release 生成时按 `custom_username` 自动替换，但 `CONTAINER_NAME` 仍需要与 Droidspaces 中的容器名称一致。
+`USERNAME` is patched automatically during Release generation according to `custom_username`, but `CONTAINER_NAME` must still match the container name in Droidspaces.
 
-如果不用脚本，也可以进入容器后手动启动：
+If you do not use the helper script, enter the container and start KDE manually:
 
 ```bash
 startplasma-x11
 ```
 
-自启动的实际效果仍取决于 Droidspaces 的 systemd、权限和显示后端配置。如果自启动没有拉起桌面，可以进入容器后执行 `startplasma-x11` 排查。
+The actual auto-start behavior still depends on Droidspaces systemd support, permissions, and the configured display backend. If the desktop does not start automatically, enter the container and run `startplasma-x11` for debugging.
 
-### Wayland/Anland 模式
+### Wayland/Anland Mode
 
-Wayland/Anland 模式适用于启用 `enable_anland_kde` 的 Debian 13、Ubuntu 26、Fedora 43 和 Fedora 44 构建。默认环境变量包括：
+Wayland/Anland mode applies to Debian 13, Ubuntu 26, Fedora 43, and Fedora 44 builds where `enable_anland_kde` is enabled. The default environment includes:
 
 ```text
 WAYLAND_DISPLAY=wayland-0
@@ -209,102 +209,102 @@ ANLAND_SOCKET=/run/display.sock
 ANLAND_DRM_DEVICE=/dev/dri/renderD128
 ```
 
-完成宿主侧 Anland 配置后，在容器内执行：
+After completing the host-side Anland setup, run this inside the container:
 
 ```bash
 startplasma-wayland
 ```
 
-如果构建的是 `mobile` 模式，对应的手动启动命令为：
+For a `mobile` build, the corresponding manual start command is:
 
 ```bash
 startplasmamobile
 ```
 
-## Wayland 和 Anland 配置
+## Wayland and Anland Setup
 
-Wayland 支持依赖 [anland](https://github.com/superturtlee/anland) 以及本仓库内的 patched KWin/Xwayland 预编译包。建议使用 `Ubuntu-26-KDE`，也可以使用 `Debian-13-KDE`、`Fedora-43-KDE` 或 `Fedora-44-KDE`。Fedora 44 已稳定支持 Wayland/Anland；它使用 Fedora 43 的 Anland 构建脚本，但在 Fedora 44 容器内重新构建 RPM。
+Wayland support depends on [anland](https://github.com/superturtlee/anland) and the patched KWin/Xwayland prebuilt packages stored in this repository. `Ubuntu-26-KDE` is recommended, while `Debian-13-KDE`, `Fedora-43-KDE`, and `Fedora-44-KDE` are also available. Fedora 44 now has stable Wayland/Anland support; it uses the Fedora 43 Anland build script but rebuilds the RPMs inside a Fedora 44 container.
 
-### 一键安装 anland-build 包
+### One-Click Installation of anland-build Packages
 
-`anland-build/install.sh` 会自动识别当前发行版，安装对应的 patched KWin/Xwayland 包，并防止系统更新将它们覆盖。如果系统仓库中的版本更新，脚本会允许将相关包降级到本仓库的 patched 版本；已经 hold 的相关包也会在更新后重新设置 hold。
-脚本会按 `LC_ALL`、`LC_MESSAGES`、`LANG` 的优先级读取系统语言：中文 locale 输出中文，其他 locale 输出英文。
+`anland-build/install.sh` automatically detects the current Linux distribution, installs the matching patched KWin/Xwayland packages, and prevents system updates from overwriting them. If the distribution repositories contain newer versions, the script allows the affected packages to be downgraded to the patched versions included in this repository. Packages that are already held can be updated and then placed on hold again.
+The script reads the system language in `LC_ALL`, `LC_MESSAGES`, and `LANG` priority order. Chinese locales produce Chinese messages; all other locales produce English messages.
 
-支持 Debian 13、Ubuntu 26.04、Fedora 43 和 Fedora 44，仅支持 ARM64/aarch64。Debian/Ubuntu 使用 `apt-mark hold`，Fedora 通过 `/etc/dnf/dnf.conf` 的 `exclude` 实现等效锁定。
+The installer supports Debian 13, Ubuntu 26.04, Fedora 43, and Fedora 44 on ARM64/aarch64 only. Debian and Ubuntu use `apt-mark hold`, while Fedora uses `exclude` entries in `/etc/dnf/dnf.conf` to provide equivalent package locking.
 
-在仓库根目录运行：
+Run it from the repository root:
 
 ```bash
 sudo ./anland-build/install.sh
 ```
 
-推荐构建选项：
+Recommended build options:
 
-| 选项 | 推荐值 |
+| Option | Recommended value |
 | --- | --- |
 | `build_target` | `Ubuntu-26-KDE` |
-| `build_KDE` | `min`、`conc` 或 `mobile` |
+| `build_KDE` | `min`, `conc`, or `mobile` |
 | `build_KDE_plus` | `true` |
 | `enable_anland_kde` | `true` |
-| `PulseAudio` | 无需手动设置，启用 Anland 后会变为 `none` |
+| `PulseAudio` | No manual setting required; it becomes `none` when Anland is enabled |
 
-宿主侧配置步骤：
+Host-side setup:
 
-1. 从 [anland Releases](https://github.com/superturtlee/anland/releases) 下载 `virtual-drm-daemon.zip`，刷入后重启设备。
-2. 从同一 Release 下载并安装 `app-debug.apk`。
-3. 导入 Droidspaces 容器时开启硬件访问。
-4. 开启 SELinux 宽容模式，或使用后文的精确 SELinux 策略修补。
-5. 在特权模式中开启 `nocaps` 和 `noseccomp`。
-6. 在高级选项中添加绑定挂载：
+1. Download `virtual-drm-daemon.zip` from [anland Releases](https://github.com/superturtlee/anland/releases), flash it, and reboot the device.
+2. Download and install `app-debug.apk` from the same Release.
+3. Enable hardware access when importing the Droidspaces container.
+4. Enable SELinux permissive mode, or use the precise SELinux policy fix documented below.
+5. Enable `nocaps` and `noseccomp` in privileged mode.
+6. Add this bind mount in advanced options:
 
 ```text
 /data/local/tmp/display_daemon.sock -> /run/display.sock
 ```
 
-7. 启动容器，选择普通用户登录。
-8. 在容器内执行：
+7. Start the container and log in as the normal user.
+8. Run:
 
 ```bash
 startplasma-wayland
 ```
 
-如果选择 `mobile`，工作流会强制启用 Wayland，因为 Plasma Mobile 在本项目中按 Wayland 路径配置。
+If `mobile` is selected, the workflow forces Wayland on because Plasma Mobile is configured through the Wayland path in this project.
 
 ## Droidspaces USB Manager
 
-全部 7 个发行版模板都会通过 `scripts/install-usb-manager.sh` 安装 [Droidspaces-USB-Manager](https://github.com/Yizhou147/Droidspaces-USB-Manager)。安装器会自动识别 Debian/Ubuntu、Fedora 或 Arch 系统，使用 APT、DNF 或 Pacman 安装对应的 PyQt5、ADB、udev、NTFS 和 exFAT 依赖，并修正上游代码中仅适用于 Debian 的命令路径。
+All seven distribution templates install [Droidspaces-USB-Manager](https://github.com/Yizhou147/Droidspaces-USB-Manager) through `scripts/install-usb-manager.sh`. The installer detects Debian/Ubuntu, Fedora, or Arch, installs the matching PyQt5, ADB, udev, NTFS, and exFAT dependencies through APT, DNF, or Pacman, and fixes command paths that are Debian-specific in the upstream source.
 
-导入 RootFS 时必须开启 Droidspaces 的硬件访问，否则容器内看不到 `/sys/bus/usb` 和 `/sys/bus/scsi` 设备。安装器会同时创建应用菜单入口和 `~/Desktop/usb-manager.desktop` 桌面快捷方式。进入 KDE 后，也可以运行：
+Hardware access must be enabled when importing the RootFS into Droidspaces. Without it, `/sys/bus/usb` and `/sys/bus/scsi` devices are not visible inside the container. The installer creates both an application-menu entry and a `~/Desktop/usb-manager.desktop` desktop shortcut. After entering KDE, you can also run:
 
 ```bash
 usb-manager
 ```
 
-另外提供两个命令行入口：
+Two command-line entry points are also installed:
 
 ```bash
 usb-passthrough
 usb-storage-passthrough
 ```
 
-如果需要在已有系统中单独安装或更新，可在仓库根目录执行：
+To install or update the application separately on an existing system, run this from the repository root:
 
 ```bash
 sudo ./scripts/install-usb-manager.sh --user "$USER"
 ```
 
-与 `anland-build/install.sh` 一样，该脚本支持自动提权、中文/英文日志、本地源码优先和缺失时下载上游源码快照。省略 `--user` 时会依次尝试 `SUDO_USER`、当前登录用户和第一个普通用户。
+Like `anland-build/install.sh`, this installer supports automatic privilege escalation, Chinese/English output, local-source preference, and an upstream source download fallback. If `--user` is omitted, it tries `SUDO_USER`, the logged-in user, and then the first regular user.
 
-## 本地构建
+## Local Build
 
-本项目主要面向 GitHub Actions，但也可以在本地使用 Docker Buildx 构建。你需要准备：
+This project is designed primarily for GitHub Actions, but local Docker Buildx builds are supported. Requirements:
 
 - Docker
 - Docker Buildx
 - `xz`
-- 如果要跨架构构建，需要可用的 QEMU/binfmt 环境
+- A working QEMU/binfmt setup if cross-architecture builds are required
 
-原生架构构建示例：
+Native build example:
 
 ```bash
 chmod +x build_rootfs-native.sh
@@ -330,7 +330,7 @@ chmod +x build_rootfs-native.sh
   -A false
 ```
 
-使用 QEMU 构建 arm64 RootFS 示例：
+QEMU arm64 build example:
 
 ```bash
 chmod +x build_rootfs-qemu-aarch64.sh
@@ -356,25 +356,25 @@ chmod +x build_rootfs-qemu-aarch64.sh
   -A true
 ```
 
-构建完成后会生成类似下面的文件：
+After a successful build, the output file will look similar to:
 
 ```text
 Ubuntu-26-KDE-Wayland-Droidspaces-rootfs-aarch64-local.tar.xz
 ```
 
-## 安装硬件固件
+## Install Hardware Firmware
 
-Debian 13 和 Ubuntu 24/25/26 RootFS 内置了 `/usr/local/bin/download-firmware`，用于安装 `linux-firmware`，并将 `/lib/firmware` 中的 `.zst` 压缩固件解压为普通固件文件。脚本还会修复原本指向 `.zst` 文件的软链接，适用于内核、驱动或容器环境无法直接读取压缩固件的情况。
+Debian 13 and Ubuntu 24/25/26 RootFS images include `/usr/local/bin/download-firmware`. It installs `linux-firmware`, decompresses `.zst` firmware under `/lib/firmware` into regular firmware files, and repairs symbolic links that previously pointed to compressed files. This is useful when a kernel, driver, or container environment cannot load compressed firmware directly.
 
-该工具只会被复制到 RootFS，不会在构建或容器启动时自动执行。需要使用时，在容器内手动运行：
+The tool is copied into the RootFS but is not run automatically during the build or container startup. Run it manually inside the container when needed:
 
 ```bash
 sudo download-firmware
 ```
 
-脚本会安装 `zstd` 和 `linux-firmware`，因此执行时需要可用的软件源和网络连接。成功后会创建 `/var/lib/.fw-setup-completed` 标记文件。当前脚本不会根据该标记跳过后续执行；重复运行仍会更新软件包列表并重新扫描固件目录。
+The script installs `zstd` and `linux-firmware`, so working package repositories and network access are required. On success it creates `/var/lib/.fw-setup-completed`. The current script does not use this marker to skip later runs; running it again still refreshes package metadata and scans the firmware directory.
 
-## 仓库结构
+## Repository Layout
 
 ```text
 .
@@ -415,23 +415,23 @@ sudo download-firmware
     └── clear.yml
 ```
 
-`anland-build/` 存放 patched KWin 和 Xwayland 预编译包以及一键安装脚本。`build-kde-wayland.yml` 可以重新构建这些包并提交回仓库。当前中文 RootFS workflow 文件名包含一个前导空格，路径为 `.github/workflows/ build-rootfs-releases.yml`。
+`anland-build/` stores the patched KWin and Xwayland prebuilt packages together with the one-click installer. `build-kde-wayland.yml` can rebuild those packages and commit the updates back to the repository. The current Chinese RootFS workflow filename contains a leading space: `.github/workflows/ build-rootfs-releases.yml`.
 
-## 已知限制
+## Known Limitations
 
-- Wayland/Anland 当前只覆盖 Debian 13、Ubuntu 26 和 Fedora 43/44。
-- Ubuntu 24、Ubuntu 25 和 Arch 当前按 X11 路径使用。
-- `mobile` 模式只允许 Debian 13、Ubuntu 26 和 Fedora 43/44。
-- 启用 Anland 后，工作流会关闭 PulseAudio 转发，因为 Anland App 自带音频路径。
-- Fedora 在部分设备上需要硬件访问，否则可能闪屏或崩溃。
-- Ubuntu 和 Debian 在未启用 `noseccomp` 或内核缺少 `USER_NS` 时，可能出现卡顿。
-- 默认密码为 `1234`，导入后应立即修改。
-- 本项目内置的预编译 Wayland 包与上游 anland 的兼容性取决于构建时的上游状态。
+- Wayland/Anland support currently covers only Debian 13, Ubuntu 26, and Fedora 43/44.
+- Ubuntu 24, Ubuntu 25, and Arch currently use the X11 path.
+- `mobile` mode is allowed only on Debian 13, Ubuntu 26, and Fedora 43/44.
+- When Anland is enabled, the workflow disables PulseAudio forwarding because the Anland app provides its own audio path.
+- Fedora may require hardware access on some devices to avoid flicker or crashes.
+- Ubuntu and Debian may lag or freeze if `noseccomp` is disabled or the kernel lacks `USER_NS`.
+- The default password is `1234`; change it after importing the RootFS.
+- Compatibility between the bundled prebuilt Wayland packages and upstream anland depends on the upstream state at build time.
 
-## 致谢
+## Acknowledgements
 
-- [Droidspaces-OSS](https://github.com/ravindu644/Droidspaces-OSS/)：本项目运行环境的基础。
-- [mesa-for-android-container](https://github.com/lfdevs/mesa-for-android-container)：高通 Snapdragon GPU 驱动支持。
-- [TMOE](https://github.com/2moe/tmoe)：容器内管理工具。
-- [anland](https://github.com/superturtlee/anland)：Wayland 显示后端和 patched KDE 相关工作。
-- [Droidspaces-USB-Manager](https://github.com/Yizhou147/Droidspaces-USB-Manager)：适用于Droidspaces 的 USB 存储和 ADB 设备管理工具。
+- [Droidspaces-OSS](https://github.com/ravindu644/Droidspaces-OSS/): the runtime foundation used by this project.
+- [mesa-for-android-container](https://github.com/lfdevs/mesa-for-android-container): Snapdragon GPU driver support.
+- [TMOE](https://github.com/2moe/tmoe): convenient management tooling inside the container.
+- [anland](https://github.com/superturtlee/anland): Wayland display backend and patched KDE work.
+- [Droidspaces-USB-Manager](https://github.com/Yizhou147/Droidspaces-USB-Manager): USB storage and ADB device management for Droidspaces.
