@@ -127,9 +127,10 @@ RUN sed -i '/en_US.UTF-8/s/^# //' /etc/locale.gen && \
         ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \
         echo "Asia/Shanghai" > /etc/timezone && \
         dpkg-reconfigure -f noninteractive tzdata && \
-        sed -i '/zh_CN.UTF-8/s/^# //' /etc/locale.gen && \
+        sed -i '/en_US.UTF-8/s/^# //' /etc/locale.gen && \
+        sed -i '/en_US.UTF-8/s/^# //' /etc/locale.gen && \
         locale-gen && \
-        update-locale LANG=zh_CN.UTF-8 LC_ALL=zh_CN.UTF-8; \
+        update-locale LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8; \
     else \
         locale-gen && \
         update-locale LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8; \

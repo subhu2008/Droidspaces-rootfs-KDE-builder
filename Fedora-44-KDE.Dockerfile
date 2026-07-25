@@ -147,8 +147,8 @@ RUN ln -sf /usr/sbin/iptables-legacy /usr/sbin/iptables && \
 RUN if [ "$ENABLE_zh_tz_ARG" = "true" ]; then \
         ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \
         echo "Asia/Shanghai" > /etc/timezone && \
-        echo "LANG=zh_CN.UTF-8" > /etc/locale.conf && \
-        echo "LC_ALL=zh_CN.UTF-8" >> /etc/locale.conf; \
+        echo "LANG=en_US.UTF-8" > /etc/locale.conf && \
+        echo "LC_ALL=en_US.UTF-8" >> /etc/locale.conf; \
     else \
         echo "LANG=en_US.UTF-8" > /etc/locale.conf && \
         echo "LC_ALL=en_US.UTF-8" >> /etc/locale.conf; \

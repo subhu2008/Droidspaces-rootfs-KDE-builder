@@ -91,10 +91,10 @@ RUN sed -i '/^#ParallelDownloads/s/^#//' /etc/pacman.conf && \
 RUN echo "en_US.UTF-8 UTF-8" > /etc/locale.gen && \
     if [ "$ENABLE_zh_tz_ARG" = "true" ]; then \
         ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \
-        echo "zh_CN.UTF-8 UTF-8" >> /etc/locale.gen && \
+        echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen && \
         locale-gen && \
-        echo "LANG=zh_CN.UTF-8" > /etc/locale.conf && \
-        echo "LC_ALL=zh_CN.UTF-8" >> /etc/locale.conf; \
+        echo "LANG=en_US.UTF-8" > /etc/locale.conf && \
+        echo "LC_ALL=en_US.UTF-8" >> /etc/locale.conf; \
     else \
         locale-gen && \
         echo "LANG=en_US.UTF-8" > /etc/locale.conf && \
